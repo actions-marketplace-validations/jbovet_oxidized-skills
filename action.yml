@@ -2,6 +2,10 @@ name: oxidized-skills
 description: Security auditing for AI agent skills - scans files for prompt injection, dangerous bash patterns, and frontmatter violations
 author: jbovet
 
+branding:
+  icon: shield
+  color: orange
+
 inputs:
   skills-path:
     description: Path to a single skill directory (containing SKILL.md) or a collection directory containing multiple skill subdirectories.
