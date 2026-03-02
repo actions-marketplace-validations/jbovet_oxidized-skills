@@ -35,6 +35,13 @@ inputs:
     description: Path to a custom oxidized-skills.toml configuration file.
     required: false
     default: ''
+  min-score:
+    description: |
+      Minimum security score (0–100) required for the audit to pass.
+      If any audited skill scores below this threshold the action exits with code 1.
+      Leave empty to disable the threshold gate.
+    required: false
+    default: ''
 
 outputs:
   sarif-file:
@@ -213,6 +220,9 @@ runs:
         fi
         if [ -n "${{ inputs.config }}" ]; then
           FLAGS="$FLAGS --config ${{ inputs.config }}"
+        fi
+        if [ -n "${{ inputs.min-score }}" ]; then
+          FLAGS="$FLAGS --min-score ${{ inputs.min-score }}"
         fi
         echo "flags=$FLAGS" >> "$GITHUB_OUTPUT"
 
@@ -406,6 +416,7 @@ runs:
           echo "| Mode | ${MODE} |"
           echo "| Errors | ${ERRORS} |"
           echo "| Warnings | ${WARNINGS} |"
+          echo "| Min score | ${{ inputs.min-score || 'n/a' }} |"
           echo "| SARIF report | \`${SARIF_OUT}\` |"
           echo ""
           if [ "$ERRORS" -gt "0" ]; then
