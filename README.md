@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/logo.svg" alt="oxidized-skills logo" width="160"/>
   <h1>oxidized-skills</h1>
-  <p><strong>Security auditing for AI agent skills.</strong><br/>
-  A CLI tool that scans skill directories for dangerous patterns, prompt injection and supply chain risks.</p>
+  <p><strong>Security auditing for AI agent skills and agents.</strong><br/>
+  A CLI tool that scans skill and agent directories for dangerous patterns, prompt injection and supply chain risks.</p>
 
   <!-- Version & registry -->
   <a href="https://crates.io/crates/oxidized-skills"><img src="https://img.shields.io/crates/v/oxidized-skills.svg?style=flat-square&logo=rust&color=CE422B" alt="Crates.io version"/></a>
@@ -24,12 +24,12 @@
 - **Bash dangerous pattern scanner** — 19 regex rules across 8 categories (RCE, credential exfiltration, destructive ops, reverse shells, privilege escalation, unsafe variable expansion, outbound network)
 - **TypeScript/JavaScript security scanner** — 10 pure-Rust regex rules across 5 categories: arbitrary code execution (`eval`, `new Function`), shell execution via `child_process`, credential file access (SSH keys, AWS, kubeconfig), raw socket reverse shells, and unallowlisted outbound HTTP calls; scans `*.ts`, `*.tsx`, `*.mts`, `*.js`, `*.mjs`
 - **Prompt injection scanner** — 19 patterns detecting instruction override, role manipulation, jailbreak attempts, data exfiltration, code injection, system prompt extraction, delimiter injection, fictional framing, and priority override; automatically skips benign boilerplate files (LICENSE, CHANGELOG, NOTICE, AUTHORS, etc.)
-- **Frontmatter auditor** — 16 rules validating `SKILL.md` structure: missing file, reserved brand names, XML injection in fields, name format and directory-name match, field length limits, vague names, body length, Windows paths, third-person description, trigger context, time-sensitive content, and unscoped `Bash` in `allowed-tools`
+- **Frontmatter auditor** — 16 rules validating `SKILL.md` and `AGENT.md` structure: missing file, reserved brand names, XML injection in fields, name format and directory-name match, field length limits, vague names, body length, Windows paths, third-person description, trigger context, time-sensitive content, and unscoped `Bash` in `allowed-tools`
 - **Package install auditor** — Detects `npm install`, `bun add`, `yarn add`, `pnpm add`, `pip install` without explicit registry, unpinned `@latest` versions, and unapproved registries (7 rules)
 - **Shell script linting** — shellcheck wrapper, automatically skipped when tool is not installed
 - **Secret scanning** — gitleaks wrapper, automatically skipped when tool is not installed
 - **Static analysis** — semgrep wrapper with 30-second timeout (gracefully skips when network is blocked or tool is unavailable)
-- **Collection directory support** — `audit-all` audits every skill in a directory at once with a summary table; `audit` detects collection directories and shows helpful hints
+- **Collection directory support** — `audit-all` audits every skill and agent in a directory at once with a summary table; `audit` detects collection directories and shows helpful hints
 - **Security score** — Every audit produces a numeric score (0–100) and letter grade (A–F); shown inline in the terminal, included as top-level fields in JSON, and embedded in `run.properties` in SARIF
 - **Multiple output formats** — Pretty terminal, JSON, and SARIF 2.1.0 (compatible with GitHub Code Scanning)
 - **Suppression system** — Inline `# audit:ignore` (or `# oxidized-skills:ignore`) trailing comments and `.oxidized-skills-ignore` file with ticket tracking
@@ -40,13 +40,13 @@
 
 ## GitHub Action
 
-The `oxidized-skills` GitHub Action audits skill directories in CI, produces a SARIF report, and optionally uploads it to GitHub Code Scanning.
+The `oxidized-skills` GitHub Action audits skill and agent directories in CI, produces a SARIF report, and optionally uploads it to GitHub Code Scanning.
 
 ### Inputs
 
 | Input | Description | Required | Default |
 |---|---|---|---|
-| `skills-path` | Path to a single skill directory or a collection directory containing multiple skills. | No | `.` |
+| `skills-path` | Path to a single skill/agent directory or a collection directory containing multiple skills and agents. | No | `.` |
 | `version` | Version of oxidized-skills to download (e.g. `v0.3.0`). Use `latest` to always fetch the newest release. | No | `latest` |
 | `strict` | Treat warnings as errors. Exit code 1 on any warning. | No | `false` |
 | `fail-on-warnings` | Fail the action when warnings are present, even without errors. | No | `false` |
@@ -133,11 +133,14 @@ Download `oxidized-skills-windows-x86_64.zip` from [releases](https://github.com
 
 ## Usage
 
-### Audit a single skill directory
+### Audit a single skill or agent directory
 
 ```bash
-# Pretty terminal output (default)
+# Audit a skill directory (default)
 oxidized-skills audit ./my-skill
+
+# Audit an agent directory
+oxidized-skills audit ./my-agent --type agent
 
 # JSON output
 oxidized-skills audit ./my-skill --format json
@@ -155,23 +158,40 @@ oxidized-skills audit ./my-skill --min-score 80
 oxidized-skills audit ./my-skill --config ./my-config.toml
 ```
 
-### Audit all skills in a collection directory
+### Audit all skills or agents in a collection directory
 
 ```bash
-# Audits every subdirectory that contains a SKILL.md, then prints a summary
+# Audits every subdirectory that contains a SKILL.md or AGENT.md, then prints a summary
 oxidized-skills audit-all ~/skills
 
-# JSON output per skill
+# Audit a collection of agents
+oxidized-skills audit-all ~/agents --type agent
+
+# JSON output per skill/agent
 oxidized-skills audit-all ~/skills --format json
 
-# Strict mode across all skills
+# Strict mode across all skills/agents
 oxidized-skills audit-all ~/skills --strict
 
-# Quality gate — fail if any skill scores below 80
+# Quality gate — fail if any skill/agent scores below 80
 oxidized-skills audit-all ~/skills --min-score 80
 ```
 
 If you accidentally run `audit` on a collection directory, the tool detects it and shows a helpful error with the correct commands to run.
+
+### Specifying skill vs. agent
+
+By default, `audit` and `audit-all` scan for **skill** directories (looking for `SKILL.md`). Use `--type agent` to audit **agent** directories (looking for `AGENT.md`):
+
+```bash
+# Default: audit skills
+oxidized-skills audit ./my-skill
+oxidized-skills audit-all ~/skills
+
+# Audit agents explicitly
+oxidized-skills audit ./my-agent --type agent
+oxidized-skills audit-all ~/agents --type agent
+```
 
 ### Other commands
 
@@ -190,9 +210,26 @@ oxidized-skills explain bash/CAT-A1
 
 | Code | Meaning |
 |------|---------|
-| 0 | Audit passed (all skills passed) |
+| 0 | Audit passed (all skills/agents passed) |
 | 1 | Audit failed (errors found, or warnings in strict mode) |
 | 2 | Runtime error (bad config, missing path, collection dir passed to `audit`, etc.) |
+
+## Skills and Agents
+
+### What's the difference?
+
+**Skills** are tool functions that extend Claude Code's capabilities. Each skill is a directory containing a `SKILL.md` file that defines the skill's metadata and behavior.
+
+**Agents** are autonomous AI systems that use their own decision-making and planning. Each agent is a directory containing an `AGENT.md` file (similar to `SKILL.md` for skills) that describes the agent's purpose and configuration.
+
+Both skills and agents are audited using the same security scanners — the scanning rules for dangerous patterns, prompt injection, and supply chain risks apply to both artifact types.
+
+### Frontmatter files
+
+- **Skills** use `SKILL.md` — see [SKILL.md format](SKILL.md)
+- **Agents** use `AGENT.md` — see [agents/agent.md](agents/agent.md) for an example
+
+The frontmatter auditor validates both file types using the same 16 rules, checking for reserved brand names, XML injection, field length limits, and other quality/safety issues.
 
 ## Scanners
 
@@ -200,9 +237,9 @@ oxidized-skills explain bash/CAT-A1
 
 - `bash_patterns`: Dangerous shell commands (RCE, reverse shells).
 - `typescript`: Dangerous TypeScript/JavaScript patterns (code execution, shell access, credential reads, raw sockets, outbound HTTP).
-- `prompt`: Prompt injection patterns in `SKILL.md`.
+- `prompt`: Prompt injection patterns in `SKILL.md` and `AGENT.md`.
 - `package_install`: Unsafe package manager usage (pinned versions, registries).
-- `frontmatter`: `SKILL.md` metadata quality and safety.
+- `frontmatter`: `SKILL.md` and `AGENT.md` metadata quality and safety.
 
 ### Semgrep Optimization
 Semgrep can be slow because it fetches rules from the registry by default. `oxidized-skills` optimizes this by:
@@ -472,7 +509,7 @@ wget https://approved-source.example.com/tool.tar.gz                       # oxi
 
 ```bash
 just docker-dev-build                         # build once
-just docker-dev ~/skills/agent-browser # audit a single skill
+just docker-dev ~/skills/my-skill      # audit a single skill
 just docker-dev-all ~/skills           # audit all skills
 ```
 
@@ -481,6 +518,9 @@ Or with plain Docker:
 ```bash
 docker build -f Dockerfile.dev -t oxidized-skills:dev .
 docker run --rm -v ~/skills:/skills:ro oxidized-skills:dev audit-all /skills
+
+# Audit agents instead of skills
+docker run --rm -v ~/agents:/agents:ro oxidized-skills:dev audit-all --type agent /agents
 ```
 
 ### Release images
@@ -494,10 +534,10 @@ Three image variants are published to GitHub Container Registry on every release
 
 > The `full` image includes `semgrep`, which fetches rules from `semgrep.dev` on first run. In network-restricted environments it will time out after 30 s and be skipped gracefully. To pre-cache rules, mount a local semgrep config with `-v ./semgrep.yml:/semgrep.yml -e SEMGREP_RULES=/semgrep.yml`.
 
-### Important: mount your skills directory
+### Important: mount your skills/agents directory
 
 The container has no access to your host filesystem unless you explicitly mount it with `-v`.
-Always mount the skill (or skills collection) as a volume and pass the **container path** to the command:
+Always mount the skill/agent directory (or collection) as a volume and pass the **container path** to the command:
 
 ```
 -v /host/path:/container/path:ro
@@ -521,10 +561,20 @@ docker run --rm \
   -v /path/to/skill:/skill:ro \
   ghcr.io/jbovet/oxidized-skills:slim audit /skill
 
+# Audit a single agent directory
+docker run --rm \
+  -v /path/to/agent:/agent:ro \
+  ghcr.io/jbovet/oxidized-skills:slim audit --type agent /agent
+
 # Audit all skills in a collection directory
 docker run --rm \
   -v ~/skills:/skills:ro \
   ghcr.io/jbovet/oxidized-skills:slim audit-all /skills
+
+# Audit all agents in a collection directory
+docker run --rm \
+  -v ~/agents:/agents:ro \
+  ghcr.io/jbovet/oxidized-skills:slim audit-all --type agent /agents
 
 # ── full image (shellcheck + gitleaks) ───────────────────────────────────────
 docker pull ghcr.io/jbovet/oxidized-skills:full
