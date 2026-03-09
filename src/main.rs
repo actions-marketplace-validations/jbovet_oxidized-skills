@@ -1,9 +1,14 @@
 mod cli;
 
 use clap::Parser;
-use cli::{Cli, Commands};
+use cli::{Cli, Commands, RuleMode};
 use colored::Colorize;
-use oxidized_skills::{audit, config, finding::AuditReport, output, scanners};
+use oxidized_skills::{
+    audit::{self, AuditMode},
+    config,
+    finding::AuditReport,
+    output, scanners,
+};
 
 fn main() {
     let cli = Cli::parse();
@@ -50,7 +55,7 @@ fn main() {
                 config.strict.enabled = true;
             }
 
-            let report = audit::run_audit(&path, &config);
+            let report = audit::run_audit(&path, &config, AuditMode::Skill);
             let formatted = output::format_report(&report, &format);
 
             if let Some(out_path) = output_path {
@@ -63,7 +68,6 @@ fn main() {
                 print!("{formatted}");
             }
 
-            // --min-score gate: fail even when the audit itself passed.
             if let Some(min) = min_score {
                 if report.security_score < min {
                     eprintln!(
@@ -109,15 +113,135 @@ fn main() {
 
             let mut reports: Vec<AuditReport> = Vec::new();
             for skill_dir in &skill_dirs {
-                let report = audit::run_audit(skill_dir, &config);
+                let report = audit::run_audit(skill_dir, &config, AuditMode::Skill);
                 let formatted = output::format_report(&report, &format);
                 print!("{formatted}");
                 reports.push(report);
             }
 
-            // Print collection summary for pretty format
             if matches!(format, output::OutputFormat::Pretty) {
-                print!("{}", format_collection_summary(&path, &reports, min_score));
+                print!(
+                    "{}",
+                    format_collection_summary(&path, &reports, min_score, "skill")
+                );
+            }
+
+            let all_passed = reports.iter().all(|r| r.passed);
+            let all_above_min = min_score
+                .map(|min| reports.iter().all(|r| r.security_score >= min))
+                .unwrap_or(true);
+            std::process::exit(if all_passed && all_above_min { 0 } else { 1 });
+        }
+
+        Commands::AuditAgent {
+            path,
+            format,
+            output: output_path,
+            strict,
+            config: config_path,
+            min_score,
+        } => {
+            if !path.exists() {
+                eprintln!("Error: path does not exist: {}", path.display());
+                std::process::exit(2);
+            }
+
+            // Detect collection directories early.
+            let agent_children = find_agent_dirs(&path);
+            if !path.join("AGENT.md").exists() && !agent_children.is_empty() {
+                eprintln!(
+                    "Error: '{}' looks like an agents collection directory, not a single agent.",
+                    path.display()
+                );
+                eprintln!();
+                eprintln!("To audit all agents at once:");
+                eprintln!("  oxidized-skills audit-all-agents {}", path.display());
+                eprintln!();
+                eprintln!("To audit a specific agent:");
+                for child in &agent_children {
+                    eprintln!("  oxidized-skills audit-agent {}", child.display());
+                }
+                std::process::exit(2);
+            }
+
+            let mut config = config::Config::load(config_path.as_deref()).unwrap_or_else(|e| {
+                eprintln!("Error: {e}");
+                std::process::exit(2);
+            });
+
+            if strict {
+                config.strict.enabled = true;
+            }
+
+            let report = audit::run_audit(&path, &config, AuditMode::Agent);
+            let formatted = output::format_report(&report, &format);
+
+            if let Some(out_path) = output_path {
+                std::fs::write(&out_path, &formatted).unwrap_or_else(|e| {
+                    eprintln!("Error writing output: {e}");
+                    std::process::exit(2);
+                });
+                eprintln!("Output written to {}", out_path.display());
+            } else {
+                print!("{formatted}");
+            }
+
+            if let Some(min) = min_score {
+                if report.security_score < min {
+                    eprintln!(
+                        "Error: security score {}/100 is below the required minimum of {}",
+                        report.security_score, min
+                    );
+                    std::process::exit(1);
+                }
+            }
+
+            std::process::exit(if report.passed { 0 } else { 1 });
+        }
+
+        Commands::AuditAllAgents {
+            path,
+            format,
+            strict,
+            config: config_path,
+            min_score,
+        } => {
+            if !path.exists() {
+                eprintln!("Error: path does not exist: {}", path.display());
+                std::process::exit(2);
+            }
+
+            let agent_dirs = find_agent_dirs(&path);
+            if agent_dirs.is_empty() {
+                eprintln!(
+                    "Error: no agent directories found in '{}' (no subdirectory contains an AGENT.md)",
+                    path.display()
+                );
+                std::process::exit(2);
+            }
+
+            let mut config = config::Config::load(config_path.as_deref()).unwrap_or_else(|e| {
+                eprintln!("Error: {e}");
+                std::process::exit(2);
+            });
+
+            if strict {
+                config.strict.enabled = true;
+            }
+
+            let mut reports: Vec<AuditReport> = Vec::new();
+            for agent_dir in &agent_dirs {
+                let report = audit::run_audit(agent_dir, &config, AuditMode::Agent);
+                let formatted = output::format_report(&report, &format);
+                print!("{formatted}");
+                reports.push(report);
+            }
+
+            if matches!(format, output::OutputFormat::Pretty) {
+                print!(
+                    "{}",
+                    format_collection_summary(&path, &reports, min_score, "agent")
+                );
             }
 
             let all_passed = reports.iter().all(|r| r.passed);
@@ -152,9 +276,28 @@ fn main() {
             );
         }
 
-        Commands::ListRules => {
-            let rules = scanners::all_rules();
-            println!("{}", "Built-in Rules".bold().underline());
+        Commands::ListRules { mode } => {
+            let rules = match mode {
+                RuleMode::Skill => scanners::all_rules(),
+                RuleMode::Agent => scanners::all_agent_rules(),
+                RuleMode::All => {
+                    let mut r = scanners::all_rules();
+                    // Add agent-only rules (agent_frontmatter) without duplicating shared rules.
+                    r.extend(scanners::agent_frontmatter::rules());
+                    r
+                }
+            };
+
+            let mode_label = match mode {
+                RuleMode::Skill => "Skill",
+                RuleMode::Agent => "Agent",
+                RuleMode::All => "All",
+            };
+
+            println!(
+                "{}",
+                format!("Built-in Rules ({mode_label})").bold().underline()
+            );
             println!();
 
             let mut current_scanner = "";
@@ -175,7 +318,7 @@ fn main() {
                 };
 
                 println!(
-                    "    [{severity}] {id:<30} {message}",
+                    "    [{severity}] {id:<40} {message}",
                     id = rule.id,
                     message = rule.message,
                 );
@@ -185,8 +328,16 @@ fn main() {
             println!("  Total: {} rules", rules.len());
         }
 
-        Commands::Explain { rule_id } => {
-            let rules = scanners::all_rules();
+        Commands::Explain { rule_id, mode } => {
+            let rules = match mode {
+                RuleMode::Skill => scanners::all_rules(),
+                RuleMode::Agent => scanners::all_agent_rules(),
+                RuleMode::All => {
+                    let mut r = scanners::all_rules();
+                    r.extend(scanners::agent_frontmatter::rules());
+                    r
+                }
+            };
             match rules.iter().find(|r| r.id == rule_id) {
                 Some(rule) => {
                     println!("{}", rule.id.bold());
@@ -198,7 +349,9 @@ fn main() {
                 }
                 None => {
                     eprintln!("Unknown rule: {rule_id}");
-                    eprintln!("Use 'oxidized-skills list-rules' to see all available rules.");
+                    eprintln!(
+                        "Use 'oxidized-skills list-rules --mode all' to see all available rules."
+                    );
                     std::process::exit(2);
                 }
             }
@@ -224,14 +377,34 @@ fn find_skill_dirs(path: &std::path::Path) -> Vec<std::path::PathBuf> {
     dirs
 }
 
-/// Renders a compact summary table after all individual skill reports have been printed.
+/// Returns immediate child directories of `path` that contain an `AGENT.md` file,
+/// sorted alphabetically by directory name.
+fn find_agent_dirs(path: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return vec![];
+    };
+
+    let mut dirs: Vec<std::path::PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.path())
+        .filter(|p| p.join("AGENT.md").exists())
+        .collect();
+
+    dirs.sort();
+    dirs
+}
+
+/// Renders a compact summary table after all individual reports have been printed.
 ///
+/// `entity_label` should be `"skill"` or `"agent"` to customise the summary header.
 /// When `min_score` is `Some(n)`, rows whose score is below `n` are annotated
 /// with a red `[< N]` marker so failures are immediately visible.
 fn format_collection_summary(
     collection_path: &std::path::Path,
     reports: &[AuditReport],
     min_score: Option<u8>,
+    entity_label: &str,
 ) -> String {
     use oxidized_skills::finding::AuditStatus;
 
@@ -242,9 +415,10 @@ fn format_collection_summary(
     out.push_str(&format!(
         "{}\n",
         format!(
-            "  Collection Summary: {}  ({} skills)",
+            "  Collection Summary: {}  ({} {}s)",
             collection_path.display(),
-            reports.len()
+            reports.len(),
+            entity_label,
         )
         .bold()
         .underline()
@@ -290,7 +464,6 @@ fn format_collection_summary(
             }
         };
 
-        // Append a min-score failure marker when the threshold is active.
         let min_score_marker = match min_score {
             Some(min) if report.security_score < min => {
                 n_below_min += 1;

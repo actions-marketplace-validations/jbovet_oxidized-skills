@@ -1,3 +1,4 @@
+use oxidized_skills::audit::AuditMode;
 use oxidized_skills::config::Config;
 use oxidized_skills::output;
 use oxidized_skills::output::OutputFormat;
@@ -5,12 +6,20 @@ use std::path::Path;
 
 fn get_dirty_report() -> oxidized_skills::finding::AuditReport {
     let config = Config::default();
-    oxidized_skills::audit::run_audit(Path::new("tests/fixtures/dirty-skill"), &config)
+    oxidized_skills::audit::run_audit(
+        Path::new("tests/fixtures/dirty-skill"),
+        &config,
+        AuditMode::Skill,
+    )
 }
 
 fn get_clean_report() -> oxidized_skills::finding::AuditReport {
     let config = Config::default();
-    oxidized_skills::audit::run_audit(Path::new("tests/fixtures/clean-skill"), &config)
+    oxidized_skills::audit::run_audit(
+        Path::new("tests/fixtures/clean-skill"),
+        &config,
+        AuditMode::Skill,
+    )
 }
 
 #[test]

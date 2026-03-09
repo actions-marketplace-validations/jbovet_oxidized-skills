@@ -23,14 +23,25 @@ domains = [
 enabled = false
 
 [scanners]
-# Enable or disable individual scanners
-shellcheck = true
-semgrep = true
-secrets = true
-prompt = true
-bash_patterns = true
-package_install = true
-frontmatter = true
+# Enable or disable individual scanners.
+# All scanners are enabled by default.
+
+# External-tool scanners (require the tool on PATH)
+shellcheck = true       # shell script linting via shellcheck
+semgrep = true          # static analysis via semgrep
+secrets = true          # secret/credential detection via gitleaks
+
+# Built-in scanners — shared by both skill and agent audits
+prompt = true           # prompt injection pattern detection
+bash_patterns = true    # dangerous bash anti-patterns
+typescript = true       # dangerous TypeScript/JavaScript patterns
+package_install = true  # unsafe package installation patterns
+
+# Built-in scanners — skill audits only (audit / audit-all)
+frontmatter = true      # SKILL.md frontmatter validation
+
+# Built-in scanners — agent audits only (audit-agent / audit-all-agents)
+agent_frontmatter = true  # AGENT.md frontmatter validation
 
 [semgrep]
 # Path to local rules (e.g., "semgrep.yml"). If omitted, looks for 

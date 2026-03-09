@@ -1,10 +1,10 @@
 //! Audit orchestration.
 //!
 //! The [`run_audit`] function is the main entry-point for running a full
-//! security audit on a skill directory. It loads all enabled
-//! [`Scanner`](crate::scanners::Scanner) implementations, executes them in
-//! parallel via [rayon], collects results, applies suppression rules, and
-//! produces a final [`AuditReport`].
+//! security audit on a skill or agent directory. It selects the appropriate
+//! scanner set based on [`AuditMode`], executes them in parallel via [rayon],
+//! collects results, applies suppression rules, and produces a final
+//! [`AuditReport`].
 
 use crate::config::{self, Config};
 use crate::finding::{AuditReport, ScanResult};
@@ -13,31 +13,44 @@ use colored::Colorize;
 use rayon::prelude::*;
 use std::path::Path;
 
-/// Runs a complete security audit on a skill directory.
+/// Selects which scanner set and report context to use for an audit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuditMode {
+    /// Audit a skill directory (looks for `SKILL.md`, uses [`skill_scanners`](scanners::skill_scanners)).
+    Skill,
+    /// Audit an agent directory (looks for `AGENT.md`, uses [`agent_scanners`](scanners::agent_scanners)).
+    Agent,
+}
+
+/// Runs a complete security audit on a skill or agent directory.
 ///
 /// # Pipeline
 ///
-/// 1. Loads every registered [`Scanner`](crate::scanners::Scanner).
+/// 1. Selects the scanner set for `mode` ([`skill_scanners`](scanners::skill_scanners)
+///    or [`agent_scanners`](scanners::agent_scanners)).
 /// 2. Filters down to those enabled in [`Config::scanners`](crate::config::Config::scanners).
 /// 3. Runs the active scanners **in parallel** using [rayon].
 ///    Scanners whose external tool is missing are recorded as *skipped*.
 /// 4. Loads [suppression rules](crate::config::load_suppressions) from the
-///    skill directory.
+///    target directory.
 /// 5. Assembles the final [`AuditReport`].
 ///
 /// # Examples
 ///
 /// ```rust,no_run
 /// use std::path::Path;
-/// use oxidized_skills::{audit, config::Config};
+/// use oxidized_skills::{audit::{self, AuditMode}, config::Config};
 ///
 /// let config = Config::load(None).unwrap();
-/// let report = audit::run_audit(Path::new("./my-skill"), &config);
+/// let report = audit::run_audit(Path::new("./my-skill"), &config, AuditMode::Skill);
 ///
 /// std::process::exit(if report.passed { 0 } else { 1 });
 /// ```
-pub fn run_audit(path: &Path, config: &Config) -> AuditReport {
-    let all = scanners::all_scanners();
+pub fn run_audit(path: &Path, config: &Config, mode: AuditMode) -> AuditReport {
+    let all = match mode {
+        AuditMode::Skill => scanners::skill_scanners(),
+        AuditMode::Agent => scanners::agent_scanners(),
+    };
 
     let n_active = all
         .iter()

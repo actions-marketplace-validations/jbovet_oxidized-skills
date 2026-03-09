@@ -109,6 +109,8 @@ pub struct ScannersConfig {
     pub package_install: bool,
     /// SKILL.md frontmatter validation (built-in).
     pub frontmatter: bool,
+    /// AGENT.md frontmatter validation (built-in).
+    pub agent_frontmatter: bool,
 }
 
 /// Configuration for the [semgrep](https://semgrep.dev/) scanner.
@@ -180,6 +182,7 @@ impl Default for ScannersConfig {
             typescript: true,
             package_install: true,
             frontmatter: true,
+            agent_frontmatter: true,
         }
     }
 }
@@ -269,6 +272,7 @@ impl Config {
             "typescript" | "typescript_patterns" => self.scanners.typescript,
             "package_install" => self.scanners.package_install,
             "frontmatter" => self.scanners.frontmatter,
+            "agent_frontmatter" => self.scanners.agent_frontmatter,
             _ => true,
         }
     }

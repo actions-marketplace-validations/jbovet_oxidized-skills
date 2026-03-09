@@ -4,19 +4,24 @@
 //! categories:
 //!
 //! - **Built-in** (no external dependencies): [`prompt`], [`bash_patterns`],
-//!   [`typescript`], [`package_install`], [`frontmatter`].
+//!   [`typescript`], [`package_install`], [`frontmatter`], [`agent_frontmatter`].
 //! - **External** (require a tool on `PATH`): [`shellcheck`], [`secrets`]
 //!   (gitleaks), [`semgrep`].
 //!
-//! Use [`all_scanners`] to obtain all registered scanners and [`all_rules`]
-//! to list every rule they define.
+//! Use [`skill_scanners`] / [`agent_scanners`] to obtain the scanner set for
+//! the appropriate audit mode, and [`all_rules`] / [`all_agent_rules`] to list
+//! every rule they define.
+//!
+//! [`all_scanners`] is kept as a backward-compatible alias for [`skill_scanners`].
 
+pub mod agent_frontmatter;
 pub mod bash_patterns;
 pub mod frontmatter;
 pub mod package_install;
 pub mod prompt;
 pub mod secrets;
 pub mod semgrep;
+pub mod shared;
 pub mod shellcheck;
 pub mod typescript;
 
@@ -72,11 +77,11 @@ pub trait Scanner: Send + Sync {
     fn scan(&self, path: &Path, config: &Config) -> ScanResult;
 }
 
-/// Returns every registered [`Scanner`] implementation.
+/// Returns scanners for a **skill** directory audit (looks for `SKILL.md`).
 ///
 /// The returned order is the default execution order; the audit runner
 /// does not depend on this ordering because scanners run in parallel.
-pub fn all_scanners() -> Vec<Box<dyn Scanner>> {
+pub fn skill_scanners() -> Vec<Box<dyn Scanner>> {
     vec![
         Box::new(prompt::PromptScanner),
         Box::new(bash_patterns::BashPatternScanner),
@@ -87,6 +92,31 @@ pub fn all_scanners() -> Vec<Box<dyn Scanner>> {
         Box::new(secrets::SecretsScanner),
         Box::new(semgrep::SemgrepScanner),
     ]
+}
+
+/// Returns scanners for an **agent** directory audit (looks for `AGENT.md`).
+///
+/// All file-type–agnostic scanners (prompt, bash patterns, secrets, etc.)
+/// are reused unchanged; only the frontmatter scanner is swapped for the
+/// agent-specific [`agent_frontmatter::AgentFrontmatterScanner`].
+pub fn agent_scanners() -> Vec<Box<dyn Scanner>> {
+    vec![
+        Box::new(prompt::PromptScanner),
+        Box::new(bash_patterns::BashPatternScanner),
+        Box::new(typescript::TypeScriptScanner),
+        Box::new(package_install::PackageInstallScanner),
+        Box::new(agent_frontmatter::AgentFrontmatterScanner),
+        Box::new(shellcheck::ShellCheckScanner),
+        Box::new(secrets::SecretsScanner),
+        Box::new(semgrep::SemgrepScanner),
+    ]
+}
+
+/// Backward-compatible alias for [`skill_scanners`].
+///
+/// Existing call sites (e.g. `CheckTools`) continue to work without change.
+pub fn all_scanners() -> Vec<Box<dyn Scanner>> {
+    skill_scanners()
 }
 
 /// Recursively collects files matching the given extensions.
@@ -484,9 +514,9 @@ pub struct RuleInfo {
     pub remediation: &'static str,
 }
 
-/// Aggregates [`RuleInfo`] from every scanner module.
+/// Aggregates [`RuleInfo`] from every **skill** scanner module.
 ///
-/// Useful for building rule-listing and rule-explanation UIs.
+/// Useful for building rule-listing and rule-explanation UIs for skill audits.
 pub fn all_rules() -> Vec<RuleInfo> {
     let mut rules = Vec::new();
     rules.extend(bash_patterns::rules());
@@ -494,6 +524,22 @@ pub fn all_rules() -> Vec<RuleInfo> {
     rules.extend(prompt::rules());
     rules.extend(package_install::rules());
     rules.extend(frontmatter::rules());
+    rules.extend(shellcheck::rules());
+    rules.extend(secrets::rules());
+    rules.extend(semgrep::rules());
+    rules
+}
+
+/// Aggregates [`RuleInfo`] from every **agent** scanner module.
+///
+/// Useful for building rule-listing and rule-explanation UIs for agent audits.
+pub fn all_agent_rules() -> Vec<RuleInfo> {
+    let mut rules = Vec::new();
+    rules.extend(bash_patterns::rules());
+    rules.extend(typescript::rules());
+    rules.extend(prompt::rules());
+    rules.extend(package_install::rules());
+    rules.extend(agent_frontmatter::rules());
     rules.extend(shellcheck::rules());
     rules.extend(secrets::rules());
     rules.extend(semgrep::rules());

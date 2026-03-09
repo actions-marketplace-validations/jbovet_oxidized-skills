@@ -11,10 +11,10 @@
 //!
 //! ```rust,no_run
 //! use std::path::Path;
-//! use oxidized_skills::{audit, config::Config, output};
+//! use oxidized_skills::{audit::{self, AuditMode}, config::Config, output};
 //!
 //! let config = Config::load(None).expect("failed to load config");
-//! let report = audit::run_audit(Path::new("./my-skill"), &config);
+//! let report = audit::run_audit(Path::new("./my-skill"), &config, AuditMode::Skill);
 //!
 //! if report.passed {
 //!     println!("Audit passed!");

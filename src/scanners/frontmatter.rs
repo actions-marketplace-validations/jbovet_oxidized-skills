@@ -34,61 +34,12 @@
 
 use crate::config::Config;
 use crate::finding::{Finding, ScanResult, Severity};
+use crate::scanners::shared::{
+    RE_FIRST_PERSON, RE_TIME_SENSITIVE, RE_WINDOWS_PATH, TRIGGER_PHRASES, VAGUE_NAME_TERMS,
+};
 use crate::scanners::{read_file_limited, RuleInfo, Scanner};
 use std::path::Path;
-use std::sync::LazyLock;
 use std::time::Instant;
-
-// ---------------------------------------------------------------------------
-// Compile-time constants and static regexes
-// ---------------------------------------------------------------------------
-
-/// Generic terms that by themselves make a skill name meaningless.
-const VAGUE_NAME_TERMS: &[&str] = &["helper", "utils", "tools", "data", "files", "documents"];
-
-/// First/second-person patterns that indicate a description is not written in
-/// third person, as required by the Claude agent skills best-practices guide.
-static RE_FIRST_PERSON: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"(?i)\b(I can|I will|I'll|I am|I'm|you can|you should|you will|you'll)\b")
-        .unwrap()
-});
-
-/// Windows-style backslash path separator.  Forward slashes should be used in
-/// SKILL.md to ensure cross-platform compatibility.
-static RE_WINDOWS_PATH: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"[a-zA-Z]:\\|[a-zA-Z0-9_][\\][a-zA-Z0-9_]").unwrap());
-
-/// Date-conditional language that will become stale over time.
-/// Matches patterns like "before August 2025", "after 2024", "as of January 2026".
-static RE_TIME_SENSITIVE: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(
-        r"(?i)\b(before|after|until|since|as of|by)\s+\w*\s*(january|february|march|april|may|june|july|august|september|october|november|december)?\s*\d{4}\b",
-    )
-    .unwrap()
-});
-
-/// Keyword phrases that signal "when to use" context in a description.
-/// The checklist requires descriptions to include both what a Skill does AND
-/// when to invoke it so Claude can select the right Skill from many.
-///
-/// Covers both terse forms ("use when") and natural prose forms
-/// ("should be used when", "when users want to…") to avoid false
-/// positives on well-written descriptions.
-const TRIGGER_PHRASES: &[&str] = &[
-    "use when",
-    "when the user",
-    "when working with",
-    "when asked",
-    "when you need",
-    "trigger",
-    "invoke when",
-    // Natural prose variants found in real skill descriptions
-    "should be used when",
-    "when users",
-    "when a user",
-    "use it when",
-    "useful when",
-];
 
 // ---------------------------------------------------------------------------
 // Lightweight YAML frontmatter parser

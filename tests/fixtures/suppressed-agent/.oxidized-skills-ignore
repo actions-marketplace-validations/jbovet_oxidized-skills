@@ -1,0 +1,5 @@
+[[suppress]]
+rule = "agent/bare-tool"
+file = "AGENT.md"
+reason = "Legacy automation requires unrestricted shell access — approved by security team"
+ticket = "SEC-042"
