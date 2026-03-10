@@ -5,6 +5,24 @@ allowed-tools:
   - Bash(oxidized-agentic-audit)
   - Read
   - Glob
+sample-prompts:
+  - "audit this skill for security issues"
+  - "check this skill for prompt injection"
+  - "scan my skill directory before deployment"
+  - "run a security audit on ./my-skill"
+  - "check for hardcoded secrets in this skill"
+  - "validate my SKILL.md structure"
+  - "audit all skills in this directory"
+metadata:
+  author: jbovet
+  version: 0.4.0
+  license: MIT
+  tags:
+    - security
+    - auditing
+    - prompt-injection
+    - static-analysis
+    - supply-chain
 ---
 
 # Security Auditing for Agent Skills
