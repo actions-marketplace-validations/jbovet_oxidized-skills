@@ -23,7 +23,7 @@
 
 use std::path::Path;
 
-/// Main configuration for the audit system.
+/// Main configuration for the scanning system.
 ///
 /// Loaded from a TOML file (typically `oxidized-agentic-audit.toml`). All fields
 /// carry sensible defaults so the config file can be omitted entirely.
@@ -68,7 +68,7 @@ pub struct AllowlistConfig {
 ///
 /// When [`enabled`](StrictConfig::enabled) is `true`, any finding with
 /// [`Severity::Warning`](crate::finding::Severity::Warning) will cause the
-/// audit to fail (status = [`AuditStatus::Failed`](crate::finding::AuditStatus::Failed)).
+/// scan to fail (status = [`ScanStatus::Failed`](crate::finding::ScanStatus::Failed)).
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct StrictConfig {
@@ -79,7 +79,7 @@ pub struct StrictConfig {
 /// Per-scanner on/off toggles.
 ///
 /// Every scanner defaults to **enabled**. Set a field to `false` in the
-/// TOML config file to skip that scanner during audits.
+/// TOML config file to skip that scanner during scans.
 ///
 /// # Examples
 ///
@@ -297,7 +297,7 @@ pub struct SuppressionFile {
     pub suppress: Vec<Suppression>,
 }
 
-/// A rule that silences a specific audit finding.
+/// A rule that silences a specific security finding.
 ///
 /// Suppressions live in `.oxidized-agentic-audit-ignore` files at the root of a skill
 /// directory and are loaded by [`load_suppressions`].

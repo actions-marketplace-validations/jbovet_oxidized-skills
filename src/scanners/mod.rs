@@ -289,7 +289,7 @@ pub const MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024; // 10 MB
 ///   file.  (The pre-open type check has a narrow TOCTOU window, but a
 ///   regular-file → special-file swap is not a realistic threat against a
 ///   static skill directory.)
-/// - **Hard read cap**: [`Read::take`]`(MAX_FILE_SIZE_BYTES + 1)` limits the
+/// - **Hard read cap**: [`std::io::Read::take`]`(MAX_FILE_SIZE_BYTES + 1)` limits the
 ///   actual kernel copy independently of the `fstat` result, providing
 ///   defence-in-depth for files that grow between the size check and the read
 ///   (appended logs, `/proc` pseudo-files on Linux, etc.).
