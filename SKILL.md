@@ -27,7 +27,7 @@ metadata:
 
 # Security Auditing for Agent Skills
 
-Run `oxidized-agentic-audit scan<path>` to scan a skill directory. The tool checks shell scripts, SKILL.md frontmatter, prompt injection vectors, and package install patterns.
+Run `oxidized-agentic-audit scan <path>` to scan a skill directory. The tool checks shell scripts, SKILL.md frontmatter, prompt injection vectors, and package install patterns.
 
 ## Quick start
 
