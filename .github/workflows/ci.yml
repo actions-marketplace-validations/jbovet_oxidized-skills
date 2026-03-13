@@ -36,11 +36,11 @@ jobs:
       - run: cargo build --release
       - name: Run against test fixtures
         run: |
-          ./target/release/oxidized-agentic-audit audit tests/fixtures/clean-skill
-          ./target/release/oxidized-agentic-audit audit tests/fixtures/dirty-skill --format json || true
-          ./target/release/oxidized-agentic-audit audit tests/fixtures/suppressed-skill --format json
-          ./target/release/oxidized-agentic-audit audit tests/fixtures/secrets-skill --format json || true
-          ./target/release/oxidized-agentic-audit audit tests/fixtures/shellcheck-skill --format json || true
+          ./target/release/oxidized-agentic-audit scan tests/fixtures/clean-skill
+          ./target/release/oxidized-agentic-audit scan tests/fixtures/dirty-skill --format json || true
+          ./target/release/oxidized-agentic-audit scan tests/fixtures/suppressed-skill --format json
+          ./target/release/oxidized-agentic-audit scan tests/fixtures/secrets-skill --format json || true
+          ./target/release/oxidized-agentic-audit scan tests/fixtures/shellcheck-skill --format json || true
           ./target/release/oxidized-agentic-audit list-rules
           ./target/release/oxidized-agentic-audit check-tools
           ./target/release/oxidized-agentic-audit explain bash/CAT-H1
@@ -76,8 +76,8 @@ jobs:
         shell: pwsh
         run: echo "$env:GITHUB_WORKSPACE\target\release" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Audit repo SKILL.md via local action
-        id: audit
+      - name: Scan repo SKILL.md via local action
+        id: scan
         uses: ./
         continue-on-error: true
         with:
@@ -85,13 +85,13 @@ jobs:
           sarif-output: 'oxidized-agentic-audit-ci.sarif'
           skip-download: 'true'
 
-      - name: Show audit outputs
+      - name: Show scan outputs
         if: always()
         shell: bash
         run: |
-          echo "SARIF file:     ${{ steps.audit.outputs.sarif-file }}"
-          echo "Errors count:   ${{ steps.audit.outputs.errors-count }}"
-          echo "Warnings count: ${{ steps.audit.outputs.warnings-count }}"
+          echo "SARIF file:     ${{ steps.scan.outputs.sarif-file }}"
+          echo "Errors count:   ${{ steps.scan.outputs.errors-count }}"
+          echo "Warnings count: ${{ steps.scan.outputs.warnings-count }}"
 
       - name: Upload SARIF as artifact
         if: always()
@@ -102,8 +102,8 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload SARIF to GitHub Code Scanning
-        if: always() && matrix.os == 'ubuntu-latest' && steps.audit.outcome == 'success'
+        if: always() && matrix.os == 'ubuntu-latest' && steps.scan.outcome == 'success'
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ steps.audit.outputs.sarif-file }}
+          sarif_file: ${{ steps.scan.outputs.sarif-file }}
           category: oxidized-agentic-audit

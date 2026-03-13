@@ -1,5 +1,5 @@
-//! Shared constants and regex patterns used by both [`frontmatter`] and
-//! [`agent_frontmatter`] scanners.
+//! Shared constants and regex patterns used by both [`crate::scanners::frontmatter`] and
+//! [`crate::scanners::agent_frontmatter`] scanners.
 //!
 //! Extracted here to avoid duplicating identical definitions across the two
 //! scanner modules while keeping each scanner self-contained otherwise.

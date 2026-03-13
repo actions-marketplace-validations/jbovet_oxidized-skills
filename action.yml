@@ -1,5 +1,5 @@
 name: oxidized-agentic-audit
-description: Security auditing for AI skills and agents — prompt injection, bash patterns, frontmatter and agentic security checks
+description: Security scanning for AI skills and agents — prompt injection, bash patterns, frontmatter and agentic security checks
 author: jbovet
 
 branding:
@@ -16,7 +16,7 @@ inputs:
     required: false
     default: ''
   type:
-    description: What to audit. One of "skill" (looks for SKILL.md) or "agent" (looks for AGENT.md).
+    description: What to scan. One of "skill" (looks for SKILL.md) or "agent" (looks for AGENT.md).
     required: false
     default: 'skill'
   version:
@@ -32,7 +32,7 @@ inputs:
     required: false
     default: 'false'
   format:
-    description: Output format for the audit report. One of pretty, json, sarif.
+    description: Output format for the scan report. One of pretty, json, sarif.
     required: false
     default: 'sarif'
   sarif-output:
@@ -45,8 +45,8 @@ inputs:
     default: ''
   min-score:
     description: |
-      Minimum security score (0–100) required for the audit to pass.
-      If any audited skill scores below this threshold the action exits with code 1.
+      Minimum security score (0–100) required for the scan to pass.
+      If any scanned skill scores below this threshold the action exits with code 1.
       Leave empty to disable the threshold gate.
     required: false
     default: ''
@@ -200,34 +200,34 @@ runs:
         echo "Added $BIN_DIR to PATH"
 
     # ── Step 6: Detect single vs collection and resolve path ──────────────────
-    - name: Detect audit mode
+    - name: Detect scan mode
       id: detect-mode
       shell: bash
       run: |
         # Resolve path: prefer 'path' input, fall back to deprecated 'skills-path'
-        AUDIT_PATH="${{ inputs.path }}"
-        if [ -z "$AUDIT_PATH" ] || [ "$AUDIT_PATH" = "." ]; then
+        SCAN_PATH="${{ inputs.path }}"
+        if [ -z "$SCAN_PATH" ] || [ "$SCAN_PATH" = "." ]; then
           if [ -n "${{ inputs.skills-path }}" ]; then
-            AUDIT_PATH="${{ inputs.skills-path }}"
+            SCAN_PATH="${{ inputs.skills-path }}"
           fi
         fi
-        AUDIT_PATH="${AUDIT_PATH:-.}"
-
+        SCAN_PATH="${SCAN_PATH:-.}"
+ 
         TYPE="${{ inputs.type }}"
         if [ "$TYPE" = "agent" ]; then
           MARKER="AGENT.md"
         else
           MARKER="SKILL.md"
         fi
-
-        echo "audit_path=$AUDIT_PATH" >> "$GITHUB_OUTPUT"
-
-        if [ -f "$AUDIT_PATH/$MARKER" ]; then
+ 
+        echo "scan_path=$SCAN_PATH" >> "$GITHUB_OUTPUT"
+ 
+        if [ -f "$SCAN_PATH/$MARKER" ]; then
           echo "mode=single" >> "$GITHUB_OUTPUT"
-          echo "Detected: single ${TYPE} at $AUDIT_PATH"
+          echo "Detected: single ${TYPE} at $SCAN_PATH"
         else
           found=0
-          for d in "$AUDIT_PATH"/*/; do
+          for d in "$SCAN_PATH"/*/; do
             if [ -f "${d}${MARKER}" ]; then
               found=1
               break
@@ -235,9 +235,9 @@ runs:
           done
           if [ "$found" = "1" ]; then
             echo "mode=collection" >> "$GITHUB_OUTPUT"
-            echo "Detected: ${TYPE} collection at $AUDIT_PATH"
+            echo "Detected: ${TYPE} collection at $SCAN_PATH"
           else
-            echo "Error: no ${MARKER} found at '$AUDIT_PATH' or in its immediate subdirectories."
+            echo "Error: no ${MARKER} found at '$SCAN_PATH' or in its immediate subdirectories."
             echo "Set 'path' to a ${TYPE} directory (containing ${MARKER}) or a collection directory, and ensure 'type' is set correctly."
             exit 1
           fi
@@ -260,33 +260,33 @@ runs:
         fi
         echo "flags=$FLAGS" >> "$GITHUB_OUTPUT"
 
-    # ── Step 8: Run audit (JSON) to capture counts ────────────────────────────
-    - name: Run audit (JSON)
-      id: run-audit-json
+    # ── Step 8: Run scan (JSON) to capture counts ────────────────────────────
+    - name: Run scan (JSON)
+      id: run-scan-json
       shell: bash
       run: |
-        AUDIT_PATH="${{ steps.detect-mode.outputs.audit_path }}"
+        SCAN_PATH="${{ steps.detect-mode.outputs.scan_path }}"
         MODE="${{ steps.detect-mode.outputs.mode }}"
         FLAGS="${{ steps.build-flags.outputs.flags }}"
         JSON_TMP="${{ runner.temp }}/oxidized-agentic-audit-results.json"
-        AUDIT_EXIT=0
-
+        SCAN_EXIT=0
+ 
         if [ "$MODE" = "single" ]; then
-          oxidized-agentic-audit audit "$AUDIT_PATH" --format json --output "$JSON_TMP" $FLAGS || AUDIT_EXIT=$?
+          oxidized-agentic-audit scan "$SCAN_PATH" --format json --output "$JSON_TMP" $FLAGS || SCAN_EXIT=$?
         else
-          oxidized-agentic-audit audit-all "$AUDIT_PATH" --format json $FLAGS > "$JSON_TMP" || AUDIT_EXIT=$?
+          oxidized-agentic-audit scan-all "$SCAN_PATH" --format json $FLAGS > "$JSON_TMP" || SCAN_EXIT=$?
         fi
-
-        echo "audit_exit=$AUDIT_EXIT" >> "$GITHUB_OUTPUT"
+ 
+        echo "scan_exit=$SCAN_EXIT" >> "$GITHUB_OUTPUT"
         echo "json_tmp=$JSON_TMP"     >> "$GITHUB_OUTPUT"
-        echo "Audit exit code: $AUDIT_EXIT"
+        echo "Scan exit code: $SCAN_EXIT"
 
     # ── Step 9: Parse finding counts ──────────────────────────────────────────
     - name: Parse finding counts
       id: parse-counts
       shell: bash
       run: |
-        JSON_TMP="${{ steps.run-audit-json.outputs.json_tmp }}"
+        JSON_TMP="${{ steps.run-scan-json.outputs.json_tmp }}"
 
         if [ ! -f "$JSON_TMP" ]; then
           echo "Warning: JSON output file not found; defaulting counts to 0"
@@ -329,21 +329,21 @@ runs:
           echo "Parsed — errors: $ERRORS, warnings: $WARNINGS"
         fi
 
-    # ── Step 10: Run audit (SARIF) ─────────────────────────────────────────────
-    - name: Run audit (SARIF)
+    # ── Step 10: Run scan (SARIF) ─────────────────────────────────────────────
+    - name: Run scan (SARIF)
       shell: bash
       run: |
-        AUDIT_PATH="${{ steps.detect-mode.outputs.audit_path }}"
+        SCAN_PATH="${{ steps.detect-mode.outputs.scan_path }}"
         MODE="${{ steps.detect-mode.outputs.mode }}"
         FLAGS="${{ steps.build-flags.outputs.flags }}"
         SARIF_OUT="${{ inputs.sarif-output }}"
-
+ 
         if [ "$MODE" = "single" ]; then
-          oxidized-agentic-audit audit "$AUDIT_PATH" --format sarif --output "$SARIF_OUT" $FLAGS || true
+          oxidized-agentic-audit scan "$SCAN_PATH" --format sarif --output "$SARIF_OUT" $FLAGS || true
         else
-          # audit-all emits one SARIF document per entry to stdout.
+          # scan-all emits one SARIF document per entry to stdout.
           # Merge all runs[] arrays into a single valid SARIF document.
-          oxidized-agentic-audit audit-all "$AUDIT_PATH" --format sarif $FLAGS | python3 - "$SARIF_OUT" <<'PYEOF' || true
+          oxidized-agentic-audit scan-all "$SCAN_PATH" --format sarif $FLAGS | python3 - "$SARIF_OUT" <<'PYEOF' || true
         import json, sys
 
         out_path = sys.argv[1]
@@ -395,16 +395,16 @@ runs:
         echo "Fail on warnings: $FAIL_ON_WARNINGS"
 
         if [ "$ERRORS" -gt "0" ]; then
-          echo "Audit FAILED: $ERRORS error(s) found."
+          echo "Scan FAILED: $ERRORS error(s) found."
           exit 1
         fi
-
+ 
         if [ "$FAIL_ON_WARNINGS" = "true" ] && [ "$WARNINGS" -gt "0" ]; then
-          echo "Audit FAILED: $WARNINGS warning(s) found and fail-on-warnings is true."
+          echo "Scan FAILED: $WARNINGS warning(s) found and fail-on-warnings is true."
           exit 1
         fi
-
-        echo "Audit passed."
+ 
+        echo "Scan passed."
 
     # ── Step 12: Set action outputs ────────────────────────────────────────────
     - name: Set outputs
@@ -434,19 +434,19 @@ runs:
         ERRORS="${{ steps.parse-counts.outputs.errors }}"
         WARNINGS="${{ steps.parse-counts.outputs.warnings }}"
         VERSION="${{ steps.resolve-version.outputs.version }}"
-        AUDIT_PATH="${{ steps.detect-mode.outputs.audit_path }}"
+        SCAN_PATH="${{ steps.detect-mode.outputs.scan_path }}"
         MODE="${{ steps.detect-mode.outputs.mode }}"
         SARIF_OUT="${{ inputs.sarif-output }}"
         ERRORS="${ERRORS:-0}"
         WARNINGS="${WARNINGS:-0}"
 
         {
-          echo "## oxidized-agentic-audit Audit Report"
+          echo "## oxidized-agentic-audit Scan Report"
           echo ""
           echo "| Field | Value |"
           echo "|---|---|"
           echo "| Version | \`${VERSION}\` |"
-          echo "| Path | \`${AUDIT_PATH}\` |"
+          echo "| Path | \`${SCAN_PATH}\` |"
           echo "| Type | ${{ inputs.type }} |"
           echo "| Mode | ${MODE} |"
           echo "| Errors | ${ERRORS} |"
@@ -455,10 +455,10 @@ runs:
           echo "| SARIF report | \`${SARIF_OUT}\` |"
           echo ""
           if [ "$ERRORS" -gt "0" ]; then
-            echo "> **Audit FAILED** — ${ERRORS} error(s) found."
+            echo "> **Scan FAILED** — ${ERRORS} error(s) found."
           elif [ "$WARNINGS" -gt "0" ]; then
-            echo "> **Audit passed with warnings** — ${WARNINGS} warning(s)."
+            echo "> **Scan passed with warnings** — ${WARNINGS} warning(s)."
           else
-            echo "> **Audit passed** — no findings."
+            echo "> **Scan passed** — no findings."
           fi
         } >> "$GITHUB_STEP_SUMMARY"

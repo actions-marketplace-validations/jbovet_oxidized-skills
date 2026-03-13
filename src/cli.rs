@@ -7,12 +7,12 @@ use clap::{Parser, Subcommand, ValueEnum};
 use oxidized_agentic_audit::output::OutputFormat;
 use std::path::PathBuf;
 
-/// Security auditing for AI agent skills and agents.
+/// Security scanning for AI agent skills and agents.
 #[derive(Parser)]
 #[command(
     name = "oxidized-agentic-audit",
     version,
-    about = "Security auditing for AI agent skills and agents"
+    about = "Security scanning for AI agent skills and agents"
 )]
 pub struct Cli {
     /// Subcommand to execute.
@@ -20,38 +20,38 @@ pub struct Cli {
     pub command: Commands,
 }
 
-/// Selects whether to audit a skill or an agent.
+/// Selects whether to scan a skill or an agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum AuditType {
-    /// Audit a skill directory (looks for SKILL.md).
+pub enum ScanType {
+    /// Scan a skill directory (looks for SKILL.md).
     Skill,
-    /// Audit an agent directory (looks for AGENT.md).
+    /// Scan an agent directory (looks for AGENT.md).
     Agent,
 }
 
 /// Selects which rule set to display for `list-rules` and `explain`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum RuleMode {
-    /// Show rules for skill audits (default).
+    /// Show rules for skill scans (default).
     Skill,
-    /// Show rules for agent audits.
+    /// Show rules for agent scans.
     Agent,
-    /// Show rules for both skill and agent audits.
+    /// Show rules for both skill and agent scans.
     All,
 }
 
 /// Available subcommands.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Audit a single skill or agent directory for security issues.
-    Audit {
-        /// Path to the directory to audit.
+    /// Scan a single skill or agent directory for security issues.
+    Scan {
+        /// Path to the directory to scan.
         /// Must contain SKILL.md (--type skill) or AGENT.md (--type agent).
         path: PathBuf,
 
-        /// Whether to audit a skill (default) or an agent.
+        /// Whether to scan a skill (default) or an agent.
         #[arg(long = "type", default_value = "skill", value_enum)]
-        audit_type: AuditType,
+        scan_type: ScanType,
 
         /// Output format (pretty, json, or sarif).
         #[arg(long, short, default_value = "pretty", value_enum)]
@@ -75,15 +75,15 @@ pub enum Commands {
         min_score: Option<u8>,
     },
 
-    /// Audit every skill or agent directory inside a collection directory.
-    #[command(name = "audit-all")]
-    AuditAll {
+    /// Scan every skill or agent directory inside a collection directory.
+    #[command(name = "scan-all")]
+    ScanAll {
         /// Path to a directory containing multiple skill or agent subdirectories.
         path: PathBuf,
 
-        /// Whether to audit skills (default) or agents.
+        /// Whether to scan skills (default) or agents.
         #[arg(long = "type", default_value = "skill", value_enum)]
-        audit_type: AuditType,
+        scan_type: ScanType,
 
         /// Output format (pretty, json, or sarif).
         #[arg(long, short, default_value = "pretty", value_enum)]
@@ -107,7 +107,7 @@ pub enum Commands {
 
     /// List every built-in rule with its severity and description.
     ListRules {
-        /// Filter rules by audit mode: skill, agent, or all (default).
+        /// Filter rules by scan mode: skill, agent, or all (default).
         #[arg(long, default_value = "all", value_enum)]
         mode: RuleMode,
     },
